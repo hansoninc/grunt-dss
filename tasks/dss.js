@@ -24,25 +24,26 @@ module.exports = function(grunt){
       template: __dirname + '/../template/',
       template_index: 'index.handlebars',
       output_index: 'index.html',
-      include_empty_files: true
+      include_empty_files: true,
+      arrange_by_sections: false
     });
 
     // Output options if --verbose cl option is passed
     grunt.verbose.writeflags(options, 'Options');
 
     // Describe custom parsers
-    for(key in options.parsers){
+    for (key in options.parsers){
       dss.parser(key, options.parsers[key]);
     }
 
     // Build Documentation
-    this.files.forEach(function(f){
+    this.files.forEach(function(f) {
 
       // Filter files based on their existence
       var src = f.src.filter(function(filepath) {
 
         // Warn on and remove invalid source files (if nonull was set).
-        if(!grunt.file.exists(filepath)){
+        if (!grunt.file.exists(filepath)) {
           grunt.log.warn('Source file "' + filepath + '" not found.');
           return false;
         } else {
@@ -56,6 +57,65 @@ module.exports = function(grunt){
           output_dir = f.dest,
           length = files.length,
           styleguide = [];
+
+      // Function to rearrange the style guide by @toc section tags,
+      // e.g. @toc 1.1.3. Enable by passing arrange_by_sections: true
+      // in the configuration options.
+      var arrangeBySections = function (styleguide, filename) {
+        var blocks = [];
+
+        for (var i = 0; i < styleguide.length; i++) {
+          var nextFile = styleguide[i];
+          // If a file contains no blocks, ignore it
+          if (!nextFile.hasOwnProperty('blocks')) {
+            continue;
+          }
+
+          for (var j = 0; j < nextFile.blocks.length; j++) {
+            var nextBlock = nextFile.blocks[j];
+
+            // For each block, extract only those that have @toc attributes
+            if (nextBlock.hasOwnProperty('toc')) {
+              blocks.push(nextBlock);
+            }
+          }
+        }
+
+        // Sort the blocks by their major and minor version numbers
+        blocks = blocks.sort(function (a, b) {
+          var aM = parseInt(a.toc.major);
+          var bM = parseInt(b.toc.major);
+          var semVerCompare = function cmp(a, b) {
+            var pa = a.split('.');
+            var pb = b.split('.');
+            for (var i = 0; i < 3; i++) {
+              var na = Number(pa[i]);
+              var nb = Number(pb[i]);
+              if (na > nb) return 1;
+              if (nb > na) return -1;
+              if (!isNaN(na) && isNaN(nb)) return 1;
+              if (isNaN(na) && !isNaN(nb)) return -1;
+            }
+            return 0;
+          };
+
+          // Attempt to sort by major version number first
+          if (aM < bM) {
+            return -1;
+          } else if (aM > bM) {
+            return 1;
+          } else {
+            // If major version #s are the same, use the full semver ID
+            return semVerCompare(a.toc.id, b.toc.id);
+          }
+          return 0;
+        });
+
+        return [{
+          blocks: blocks,
+          file: filename
+        }];
+      }
 
       // Parse files
       files.map(function(filename){
@@ -104,6 +164,10 @@ module.exports = function(grunt){
               });
             });
 
+            if (options.arrange_by_sections) {
+              styleguide = arrangeBySections(styleguide, 'app.css');
+            }
+
             // Create HTML ouput
             var html = handlebars.compile(grunt.file.read(template_filepath))({
               project: grunt.file.readJSON('package.json'),
@@ -112,7 +176,7 @@ module.exports = function(grunt){
 
             var output_type = 'created', output = null;
             if (grunt.file.exists(output_filepath)) {
-              output_type = 'overwrited';
+              output_type = 'overwrote';
               output = grunt.file.read(output_filepath);
             }
             // avoid write if there is no change
