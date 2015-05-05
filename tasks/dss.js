@@ -9,6 +9,7 @@
 // Include dependancies
 var handlebars = require('handlebars');
 var dss = require('dss');
+var extend = require('util')._extend;
 
 // Expose
 module.exports = function(grunt){
@@ -168,6 +169,19 @@ module.exports = function(grunt){
               styleguide = arrangeBySections(styleguide, 'app.css');
             }
 
+            if (options.write_output_file) {
+              grunt.file.write( 'output.json', JSON.stringify(styleguide) );
+            }
+
+            // Add helper for markupExamples
+            handlebars.registerHelper('render_subtemplate', function(markup, options) {
+              // we need the sub template compiled here
+              // in order to be able to generate the top level template
+              var subTemplate =  handlebars.compile( markup );
+              var subTemplateContext = extend(this, options.hash);
+              return new handlebars.SafeString( subTemplate(subTemplateContext) );
+            });
+
             // Create HTML ouput
             var html = handlebars.compile(grunt.file.read(template_filepath))({
               project: grunt.file.readJSON('package.json'),
@@ -176,7 +190,7 @@ module.exports = function(grunt){
 
             var output_type = 'created', output = null;
             if (grunt.file.exists(output_filepath)) {
-              output_type = 'overwrote';
+              output_type = 'overwritten';
               output = grunt.file.read(output_filepath);
             }
             // avoid write if there is no change
