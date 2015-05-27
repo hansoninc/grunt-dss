@@ -25,7 +25,7 @@
     "test": "grunt test"
   },
   "dependencies": {
-    "dss": "https://github.com/hansoninc/DSS/tarball/master",
+    "dss": "^1.0.4",
     "handlebars": "1.0.12"
   },
   "devDependencies": {
